@@ -68,7 +68,7 @@ int main(int argc, char* argv[]){
     for(int i = 0; i < 5; i++){
         opndCnt = 0;
         clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
-        recv(clnt_sock, (char*)&opndCnt, 1, 0); // recv one byte
+        read(clnt_sock, (char*)&opndCnt, 1); // recv one byte
  
         recv_len = 0;
         while((opndCnt * OPSZ + 1) > recv_len){
@@ -77,7 +77,7 @@ int main(int argc, char* argv[]){
         }
  
         result = calculate(opndCnt, (int*)opinfo, opinfo[recv_len - 1]);
-        send(clnt_sock, (char*)&result, sizeof(result), 0);
+        write(clnt_sock, (char*)&result, sizeof(result));
         close(clnt_sock);
     }
  
