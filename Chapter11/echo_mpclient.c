@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 30
 
 void error_handling(char *message){
     fputs(message, stderr);
@@ -16,10 +16,30 @@ void error_handling(char *message){
     exit(1);
 }
 
+void read_routine(int sock, char *buf){
+    while(1){
+        int str_len = read(sock, buf, BUF_SIZE);
+        if(str_len == 0) return;
+        buf[str_len] = 0;
+        printf("Message from server: %s", buf);
+    }
+}
+
+void write_routine(int sock, char* buf){
+    while(1){
+        fgets(buf, BUF_SIZE, stdin);
+        if(!strcmp(buf, "q\n") || !strcmp(buf, "Q\n")){
+            shutdown(sock, SHUT_WR); // 调用 shutdown 函数向服务器端传递 EOF
+            return;
+        }
+        write(sock, buf, strlen(buf));
+    }
+}
+
 int main(int argc, char *argv[]){
     int sock;
-    char message[BUF_SIZE];
-    int str_len;
+    pid_t pid;
+    char buf[BUF_SIZE];
     struct sockaddr_in serv_adr;
 
     if(argc != 3){
@@ -27,11 +47,7 @@ int main(int argc, char *argv[]){
         exit(1);
     }
 
-    sock = socket(PF_INET, SOCK_STREAM, 0);
-    if(sock == -1){
-        error_handling("socket() error");
-    }
-
+    sock = socket(PF_INET, SOCK_STREAM, 0); // 创建 tcp socket
     memset(&serv_adr, 0, sizeof(serv_adr));
     serv_adr.sin_family = AF_INET;
     serv_adr.sin_addr.s_addr = inet_addr(argv[1]);
@@ -40,24 +56,14 @@ int main(int argc, char *argv[]){
     if(connect(sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1){
         error_handling("connect() error!");
     }
-    else{
-        puts("Connected.......");
+
+    pid = fork(); // 创建子进程实现 I/O 分离
+    if(pid == 0){ // 子进程写数据到服务器端
+        write_routine(sock, buf);
     }
-
-    while(1){
-        fputs("Input message(Q to quit): ", stdout);
-        fgets(message, BUF_SIZE, stdin);
-
-        if(!strcmp(message, "q\n") || !strcmp(message, "Q\n")){
-            break;
-        }
-
-        write(sock, message, strlen(message));
-        str_len = read(sock, message, BUF_SIZE-1);
-        message[str_len] = 0;
-        printf("Message from server: %s", message);
+    else{ // 父进程从服务器端中读取数据
+        read_routine(sock, buf);
     }
-
     close(sock);
     return 0;
 }   
